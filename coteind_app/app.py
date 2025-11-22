@@ -7,16 +7,25 @@ from db import MySQLClient
 APP_TITLE = "COTEIND"
 
 def load_config(path="config.json"):
+    """
+    Carga el archivo de configuración JSON (host/port/user/password/database).
+    Si no existe, devuelve un diccionario con valores por defecto.
+    """
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     return {"host": "localhost", "port": 3306, "user": "root", "password": "root", "database": "coteind"}
 
 def save_config(cfg, path="config.json"):
+    """Guarda el diccionario de configuración en disco (UTF-8, identado)."""
     with open(path, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2)
 
 class ConnectionWindow(tk.Toplevel):
+    """
+    Ventana modal de conexión.
+    Permite editar parámetros de conexión, probarlos y continuar si son válidos.
+    """
     def __init__(self, master, on_connected):
         super().__init__(master)
         self.title(f"{APP_TITLE} · Conexión")
@@ -26,34 +35,42 @@ class ConnectionWindow(tk.Toplevel):
         self._build()
 
     def _build(self):
+        """Construye los controles de la ventana de conexión."""
         frm = ttk.Frame(self, padding=12)
         frm.grid(row=0, column=0, sticky="nsew")
+
         ttk.Label(frm, text="Host:").grid(row=0, column=0, sticky="w")
         self.e_host = ttk.Entry(frm, width=30)
         self.e_host.insert(0, self.cfg.get("host", "localhost"))
         self.e_host.grid(row=0, column=1, pady=2, sticky="ew")
+
         ttk.Label(frm, text="Puerto:").grid(row=1, column=0, sticky="w")
         self.e_port = ttk.Entry(frm, width=10)
         self.e_port.insert(0, str(self.cfg.get("port", 3306)))
         self.e_port.grid(row=1, column=1, pady=2, sticky="w")
+
         ttk.Label(frm, text="Usuario:").grid(row=2, column=0, sticky="w")
         self.e_user = ttk.Entry(frm, width=30)
         self.e_user.insert(0, self.cfg.get("user", "root"))
         self.e_user.grid(row=2, column=1, pady=2, sticky="ew")
+
         ttk.Label(frm, text="Contraseña (puede ir vacía):").grid(row=3, column=0, sticky="w")
         self.e_pwd = ttk.Entry(frm, show="*", width=30)
         self.e_pwd.insert(0, self.cfg.get("password", ""))
         self.e_pwd.grid(row=3, column=1, pady=2, sticky="ew")
+
         ttk.Label(frm, text="Base de Datos:").grid(row=4, column=0, sticky="w")
         self.e_db = ttk.Entry(frm, width=30)
         self.e_db.insert(0, self.cfg.get("database", "coteind"))
         self.e_db.grid(row=4, column=1, pady=2, sticky="ew")
+
         btns = ttk.Frame(frm)
         btns.grid(row=5, column=0, columnspan=2, pady=8, sticky="e")
         ttk.Button(btns, text="Probar conexión", command=self.test_conn).grid(row=0, column=0, padx=4)
         ttk.Button(btns, text="Guardar y continuar", command=self.save_and_continue).grid(row=0, column=1, padx=4)
 
     def test_conn(self):
+        """Ejecuta un SELECT 1 para validar parámetros. Muestra diálogo con el resultado."""
         client = MySQLClient(
             host=self.e_host.get().strip(),
             port=int(self.e_port.get().strip()),
@@ -68,6 +85,7 @@ class ConnectionWindow(tk.Toplevel):
             messagebox.showerror("Conexión", "Error de conexión:\n" + (out or "Desconocido"))
 
     def save_and_continue(self):
+        """Persiste la config, cierra la ventana y notifica al callback `on_connected`."""
         cfg = {
             "host": self.e_host.get().strip(),
             "port": int(self.e_port.get().strip()),
@@ -80,6 +98,10 @@ class ConnectionWindow(tk.Toplevel):
         self.on_connected(cfg)
 
 class LoginWindow(tk.Toplevel):
+    """
+    Ventana de login.
+    El usuario escribe solo los 4 dígitos; el prefijo 'E' se fija y se valida.
+    """
     def __init__(self, master, cfg, on_login_ok):
         super().__init__(master)
         self.title(f"{APP_TITLE} · Login")
@@ -90,24 +112,31 @@ class LoginWindow(tk.Toplevel):
         self._build()
 
     def _build(self):
+        """Construye controles del formulario de login."""
         frm = ttk.Frame(self, padding=12)
         frm.grid(row=0, column=0, sticky="nsew")
+
         ttk.Label(frm, text="Código (5) EXXXX").grid(row=0, column=0, sticky="w")
         code_frame = ttk.Frame(frm)
         code_frame.grid(row=0, column=1, padx=6, pady=6, sticky="w")
+
         self.e_prefix = ttk.Entry(code_frame, width=2)
         self.e_prefix.insert(0, "E")
         self.e_prefix.configure(state="disabled")
         self.e_prefix.grid(row=0, column=0)
+
         vcmd = (self.register(self._validate_digits_len4), "%P")
         self.e_codigo_num = ttk.Entry(code_frame, width=6, validate="key", validatecommand=vcmd)
         self.e_codigo_num.grid(row=0, column=1)
+
         ttk.Button(frm, text="Ingresar", command=self._do_login).grid(row=1, column=1, sticky="e")
 
     def _validate_digits_len4(self, P):
+        """Valida que solo se ingresen dígitos y como máximo 4 caracteres."""
         return P.isdigit() and len(P) <= 4
 
     def _compose_code(self, digits):
+        """Compone el código completo (E####), rellenando con ceros si falta longitud."""
         digits = (digits or "").strip()
         if not digits.isdigit():
             return None
@@ -116,6 +145,7 @@ class LoginWindow(tk.Toplevel):
         return "E" + digits
 
     def _do_login(self):
+        """Consulta el nombre del empleado por código; si existe, continúa a la app."""
         cod = self._compose_code(self.e_codigo_num.get())
         if not cod:
             messagebox.showwarning("Login", "Ingrese solo números (hasta 4).")
@@ -129,6 +159,10 @@ class LoginWindow(tk.Toplevel):
             messagebox.showerror("Login", f"Código no encontrado: {cod}")
 
 class MainApp(tk.Tk):
+    """
+    Ventana principal (Tk).
+    Orquesta la conexión, inicialización SQL, login y construcción de pestañas (CRUD + reportes).
+    """
     def __init__(self):
         super().__init__()
         self.title(APP_TITLE)
@@ -138,16 +172,24 @@ class MainApp(tk.Tk):
         self.client = None
         self.current_user_code = None
         self.current_user_name = None
+        # Abre primero la ventana de conexión
         self.after(100, self._open_connection_window)
     
     def _init_database(self):
+        """
+        Ejecuta los .sql de /sql:
+        - schema_seed.sql (solo si la tabla Empleado existe y no está vacía se omite el seed)
+        - procedures_all.sql
+        - triggers.sql
+        """
         base_dir = os.path.dirname(os.path.abspath(__file__))
         sql_dir = os.path.join(base_dir, "sql")
         files = [
-            ("schema_seed.sql", False),   
-            ("procedures_all.sql", True), 
+            ("schema_seed.sql", False),   # se ejecuta sin forzar -D porque el script crea/usa el schema
+            ("procedures_all.sql", True), # ya con -D coteind
             ("triggers.sql", True)
         ]
+        # Detecta si Empleado existe y tiene filas; si es así, evita correr el seed para no duplicar
         ok, out = self.client.run_sql(
             "SELECT COUNT(*) "
             "FROM information_schema.tables "
@@ -158,6 +200,8 @@ class MainApp(tk.Tk):
             ok2, out2 = self.client.run_sql("SELECT COUNT(*) FROM Empleado;", use_db=True)
             if ok2 and out2 and int(out2.strip().splitlines()[0]) > 0:
                 files = [f for f in files if f[0] != "schema_seed.sql"]
+
+        # Ejecuta cada archivo
         for fname, use_db in files:
             path = os.path.join(sql_dir, fname)
             if os.path.exists(path):
@@ -166,15 +210,21 @@ class MainApp(tk.Tk):
                     messagebox.showerror("Inicialización SQL", f"Error en {fname}:\n{outf}")
 
     def _open_connection_window(self):
+        """Lanza la ventana de conexión y pasa el callback `_on_connected`."""
         ConnectionWindow(self, self._on_connected)
 
     def _on_connected(self, cfg):
+        """
+        Recibe la config confirmada, crea MySQLClient,
+        inicializa la BD (scripts SQL) y abre la ventana de login.
+        """
         self.cfg = cfg
         self.client = MySQLClient(**cfg)
         self._init_database()
         LoginWindow(self, cfg, self._on_login_ok)
 
     def _on_login_ok(self, cfg, user_code, user_name):
+        """Callback posterior al login exitoso: persiste contexto de usuario y construye UI."""
         self.cfg = cfg
         self.client = MySQLClient(**cfg)
         self.current_user_code = user_code
@@ -182,13 +232,17 @@ class MainApp(tk.Tk):
         self._build_ui()
 
     def _build_ui(self):
+        """Arma la barra superior y el Notebook con todas las pestañas de trabajo."""
         top = ttk.Frame(self, padding=8)
         top.pack(fill="x")
         ttk.Label(top, text=f"Conectado a {self.cfg['database']}@{self.cfg['host']}:{self.cfg['port']}").pack(side="left")
         ttk.Label(top, text=f" | Usuario BD: {self.cfg['user']}").pack(side="left")
         ttk.Label(top, text=f" | Empleado: {self.current_user_code} - {self.current_user_name}").pack(side="right")
+
         nb = ttk.Notebook(self)
         nb.pack(fill="both", expand=True, padx=8, pady=8)
+
+        # Pestañas
         tab_empleados = ttk.Frame(nb)
         tab_inventario = ttk.Frame(nb)
         tab_proveedores = ttk.Frame(nb)
@@ -196,6 +250,7 @@ class MainApp(tk.Tk):
         tab_oc = ttk.Frame(nb)
         tab_proforma = ttk.Frame(nb)
         tab_reportes = ttk.Frame(nb)
+
         nb.add(tab_empleados, text="Empleados")
         nb.add(tab_inventario, text="Inventario")
         nb.add(tab_proveedores, text="Proveedores")
@@ -203,6 +258,8 @@ class MainApp(tk.Tk):
         nb.add(tab_oc, text="Orden de Compra")
         nb.add(tab_proforma, text="Proforma")
         nb.add(tab_reportes, text="Reportes")
+
+        # Construcción de cada tab
         self._build_tab_empleados(tab_empleados)
         self._build_tab_inventario(tab_inventario)
         self._build_tab_proveedores(tab_proveedores)
@@ -211,11 +268,16 @@ class MainApp(tk.Tk):
         self._build_tab_proforma(tab_proforma)
         self._build_tab_reportes(tab_reportes)
 
+    # -------- Empleados -------------------------------------------------------
     def _build_tab_empleados(self, parent):
+        """UI y eventos de CRUD de Empleado (y Contacto_Empleado)."""
         parent.columnconfigure(0, weight=1)
         parent.columnconfigure(1, weight=1)
+
+        # Formulario
         fr_form = ttk.LabelFrame(parent, text="Registro / Edición", padding=10)
         fr_form.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
+
         ttk.Label(fr_form, text="Código (5) EXXXX").grid(row=0, column=0, sticky="e")
         code_frame = ttk.Frame(fr_form)
         code_frame.grid(row=0, column=1, sticky="w", pady=2)
@@ -226,20 +288,26 @@ class MainApp(tk.Tk):
         vcmd = (self.register(self._validate_digits_len4_global), "%P")
         self.e_emp_cod_num = ttk.Entry(code_frame, width=6, validate="key", validatecommand=vcmd)
         self.e_emp_cod_num.grid(row=0, column=1)
+
         ttk.Label(fr_form, text="Nombre").grid(row=1, column=0, sticky="e")
         self.e_emp_nom = ttk.Entry(fr_form, width=40)
         self.e_emp_nom.grid(row=1, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_form, text="Teléfono").grid(row=2, column=0, sticky="e")
         self.e_emp_tel = ttk.Entry(fr_form, width=20)
         self.e_emp_tel.grid(row=2, column=1, sticky="w", pady=2)
+
         fr_btns = ttk.Frame(fr_form)
         fr_btns.grid(row=3, column=0, columnspan=2, sticky="e", pady=6)
         ttk.Button(fr_btns, text="Crear", command=self._registrar_empleado).grid(row=0, column=0, padx=4)
         ttk.Button(fr_btns, text="Actualizar", command=self._actualizar_empleado).grid(row=0, column=1, padx=4)
         ttk.Button(fr_btns, text="Eliminar", command=self._eliminar_empleado).grid(row=0, column=2, padx=4)
+
+        # Tabla
         fr_tbl = ttk.LabelFrame(parent, text="Listado", padding=10)
         fr_tbl.grid(row=0, column=1, sticky="nsew", padx=8, pady=8)
         parent.rowconfigure(0, weight=1)
+
         cols = ("Codigo", "Nombre", "Telefono")
         self.tv_emp = ttk.Treeview(fr_tbl, columns=cols, show="headings", height=12)
         for c in cols:
@@ -248,12 +316,15 @@ class MainApp(tk.Tk):
         self.tv_emp.pack(fill="both", expand=True)
         self.tv_emp.bind("<<TreeviewSelect>>", self._emp_on_select)
         ttk.Button(fr_tbl, text="Refrescar", command=self._cargar_empleados).pack(anchor="e", pady=6)
+
         self._cargar_empleados()
 
     def _validate_digits_len4_global(self, P):
+        """Valida entradas numéricas de 0–4 dígitos para códigos E####."""
         return P.isdigit() and len(P) <= 4
 
     def _compose_emp_code(self):
+        """Construye el código E#### desde el campo numérico del formulario."""
         digits = (self.e_emp_cod_num.get() or "").strip()
         if not digits.isdigit():
             return None
@@ -262,6 +333,7 @@ class MainApp(tk.Tk):
         return "E" + digits
 
     def _emp_on_select(self, _evt):
+        """Rellena el formulario con la fila seleccionada en la tabla."""
         sel = self.tv_emp.selection()
         if not sel:
             return
@@ -276,6 +348,7 @@ class MainApp(tk.Tk):
             self.e_emp_tel.insert(0, vals[2])
 
     def _cargar_empleados(self):
+        """Consulta y vuelca Empleado + Contacto_Empleado en la tabla."""
         for i in self.tv_emp.get_children():
             self.tv_emp.delete(i)
         sql = """
@@ -289,6 +362,7 @@ class MainApp(tk.Tk):
             self.tv_emp.insert("", tk.END, values=r)
 
     def _registrar_empleado(self):
+        """Invoca sp_Agregar_Empleado."""
         cod = self._compose_emp_code()
         nom = self.e_emp_nom.get().strip()
         tel = self.e_emp_tel.get().strip()
@@ -304,6 +378,7 @@ class MainApp(tk.Tk):
             messagebox.showerror("Empleado", out)
 
     def _actualizar_empleado(self):
+        """Invoca sp_Actualizar_Empleado."""
         cod = self._compose_emp_code()
         nom = self.e_emp_nom.get().strip()
         tel = self.e_emp_tel.get().strip()
@@ -319,6 +394,7 @@ class MainApp(tk.Tk):
             messagebox.showerror("Empleado", out)
 
     def _eliminar_empleado(self):
+        """Invoca sp_Eliminar_Empleado (con protección para el usuario logueado)."""
         cod = self._compose_emp_code()
         if not cod:
             messagebox.showwarning("Empleado", "Seleccione un empleado.")
@@ -335,50 +411,70 @@ class MainApp(tk.Tk):
             else:
                 messagebox.showerror("Empleado", out)
 
+    # -------- Inventario (Repuesto) ------------------------------------------
     def _build_tab_inventario(self, parent):
+        """UI y eventos de CRUD de Repuesto + ajuste de stock."""
         parent.columnconfigure(0, weight=1)
         parent.columnconfigure(1, weight=1)
+
+        # Formulario crear/actualizar/eliminar
         fr_left = ttk.LabelFrame(parent, text="Repuesto – Crear / Actualizar", padding=10)
         fr_left.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
+
         ttk.Label(fr_left, text="Nro_Parte").grid(row=0, column=0, sticky="e")
         self.e_rep_np = ttk.Entry(fr_left, width=18)
         self.e_rep_np.grid(row=0, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_left, text="Descripción").grid(row=1, column=0, sticky="e")
         self.e_rep_desc = ttk.Entry(fr_left, width=35)
         self.e_rep_desc.grid(row=1, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_left, text="Marca").grid(row=2, column=0, sticky="e")
         self.e_rep_marca = ttk.Entry(fr_left, width=20)
         self.e_rep_marca.grid(row=2, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_left, text="Status").grid(row=3, column=0, sticky="e")
         self.e_rep_status = ttk.Entry(fr_left, width=12)
         self.e_rep_status.grid(row=3, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_left, text="Precio").grid(row=4, column=0, sticky="e")
         self.e_rep_precio = ttk.Entry(fr_left, width=12)
         self.e_rep_precio.grid(row=4, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_left, text="Cantidad").grid(row=5, column=0, sticky="e")
         self.e_rep_cant = ttk.Entry(fr_left, width=12)
         self.e_rep_cant.grid(row=5, column=1, sticky="w", pady=2)
+
         fr_btns_l = ttk.Frame(fr_left)
         fr_btns_l.grid(row=6, column=0, columnspan=2, sticky="e", pady=6)
         ttk.Button(fr_btns_l, text="Crear", command=self._agregar_repuesto).grid(row=0, column=0, padx=4)
         ttk.Button(fr_btns_l, text="Actualizar", command=self._actualizar_repuesto).grid(row=0, column=1, padx=4)
         ttk.Button(fr_btns_l, text="Eliminar", command=self._eliminar_repuesto).grid(row=0, column=2, padx=4)
+
+        # Ajuste stock
         fr_right = ttk.LabelFrame(parent, text="Ajuste de Stock", padding=10)
         fr_right.grid(row=0, column=1, sticky="nsew", padx=8, pady=8)
+
         ttk.Label(fr_right, text="Nro_Parte").grid(row=0, column=0, sticky="e")
         self.e_adj_np = ttk.Entry(fr_right, width=18)
         self.e_adj_np.grid(row=0, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_right, text="Cantidad (+/-)").grid(row=1, column=0, sticky="e")
         self.e_adj_cant = ttk.Entry(fr_right, width=12)
         self.e_adj_cant.grid(row=1, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_right, text="Operación").grid(row=2, column=0, sticky="e")
         self.op_var = tk.StringVar(value="SUMA")
         self.cmb_op = ttk.Combobox(fr_right, textvariable=self.op_var, values=["SUMA", "RESTA"], state="readonly", width=10)
         self.cmb_op.grid(row=2, column=1, sticky="w", pady=2)
+
         ttk.Button(fr_right, text="Aplicar Ajuste", command=self._ajustar_stock).grid(row=3, column=1, sticky="e", pady=6)
+
+        # Tabla inventario
         fr_tbl = ttk.LabelFrame(parent, text="Inventario (vista rápida)", padding=10)
         fr_tbl.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=8, pady=8)
         parent.rowconfigure(1, weight=1)
+
         cols = ("Nro_Parte", "Descripcion", "Marca", "Status", "Precio_Unitario", "Cantidad")
         self.tv_inv = ttk.Treeview(fr_tbl, columns=cols, show="headings", height=10)
         for c in cols:
@@ -387,9 +483,11 @@ class MainApp(tk.Tk):
         self.tv_inv.pack(fill="both", expand=True)
         self.tv_inv.bind("<<TreeviewSelect>>", self._rep_on_select)
         ttk.Button(fr_tbl, text="Refrescar", command=self._cargar_inventario).pack(anchor="e", pady=6)
+
         self._cargar_inventario()
 
     def _rep_on_select(self, _evt):
+        """Carga en el formulario el repuesto seleccionado en la tabla."""
         sel = self.tv_inv.selection()
         if not sel:
             return
@@ -403,6 +501,7 @@ class MainApp(tk.Tk):
             self.e_rep_cant.delete(0, tk.END); self.e_rep_cant.insert(0, vals[5])
 
     def _agregar_repuesto(self):
+        """Invoca sp_Agregar_Repuesto tras validar tipos básicos."""
         npart = self.e_rep_np.get().strip()
         desc = self.e_rep_desc.get().strip()
         marca = self.e_rep_marca.get().strip()
@@ -426,6 +525,7 @@ class MainApp(tk.Tk):
             messagebox.showerror("Repuesto", out)
 
     def _actualizar_repuesto(self):
+        """Invoca sp_Actualizar_Repuesto."""
         npart = self.e_rep_np.get().strip()
         desc = self.e_rep_desc.get().strip()
         marca = self.e_rep_marca.get().strip()
@@ -449,6 +549,7 @@ class MainApp(tk.Tk):
             messagebox.showerror("Repuesto", out)
 
     def _eliminar_repuesto(self):
+        """Invoca sp_Eliminar_Repuesto con confirmación."""
         npart = self.e_rep_np.get().strip()
         if not npart:
             messagebox.showwarning("Repuesto", "Seleccione un repuesto.")
@@ -463,6 +564,7 @@ class MainApp(tk.Tk):
                 messagebox.showerror("Repuesto", out)
 
     def _ajustar_stock(self):
+        """Invoca sp_Actualizar_Stock (SUMA/RESTA) validando cantidad entera."""
         npart = self.e_adj_np.get().strip()
         cant = self.e_adj_cant.get().strip()
         op = (self.op_var.get() or "SUMA").upper()
@@ -483,6 +585,7 @@ class MainApp(tk.Tk):
             messagebox.showerror("Stock", out)
 
     def _cargar_inventario(self):
+        """Consulta y pinta la tabla de repuestos."""
         for i in self.tv_inv.get_children():
             self.tv_inv.delete(i)
         sql = "SELECT Nro_Parte, Descripcion, Marca, Status, Precio_Unitario, Cantidad FROM Repuesto ORDER BY Descripcion;"
@@ -490,34 +593,45 @@ class MainApp(tk.Tk):
         for r in rows:
             self.tv_inv.insert("", tk.END, values=r)
 
+    # -------- Proveedores -----------------------------------------------------
     def _build_tab_proveedores(self, parent):
+        """UI y eventos de CRUD de Proveedor (con teléfono y email)."""
         parent.columnconfigure(0, weight=1)
         parent.columnconfigure(1, weight=1)
+
         fr_form = ttk.LabelFrame(parent, text="Proveedor – Crear / Actualizar", padding=10)
         fr_form.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
+
         ttk.Label(fr_form, text="RUC (11)").grid(row=0, column=0, sticky="e")
         self.e_prv_ruc = ttk.Entry(fr_form, width=18)
         self.e_prv_ruc.grid(row=0, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_form, text="Razón Social").grid(row=1, column=0, sticky="e")
         self.e_prv_raz = ttk.Entry(fr_form, width=40)
         self.e_prv_raz.grid(row=1, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_form, text="Dirección").grid(row=2, column=0, sticky="e")
         self.e_prv_dir = ttk.Entry(fr_form, width=40)
         self.e_prv_dir.grid(row=2, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_form, text="Teléfono").grid(row=3, column=0, sticky="e")
         self.e_prv_tel = ttk.Entry(fr_form, width=20)
         self.e_prv_tel.grid(row=3, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_form, text="Email").grid(row=4, column=0, sticky="e")
         self.e_prv_mail = ttk.Entry(fr_form, width=30)
         self.e_prv_mail.grid(row=4, column=1, sticky="w", pady=2)
+
         fr_btns = ttk.Frame(fr_form)
         fr_btns.grid(row=5, column=0, columnspan=2, sticky="e", pady=6)
         ttk.Button(fr_btns, text="Crear", command=self._crear_proveedor).grid(row=0, column=0, padx=4)
         ttk.Button(fr_btns, text="Actualizar", command=self._actualizar_proveedor).grid(row=0, column=1, padx=4)
         ttk.Button(fr_btns, text="Eliminar", command=self._eliminar_proveedor).grid(row=0, column=2, padx=4)
+
         fr_tbl = ttk.LabelFrame(parent, text="Listado", padding=10)
         fr_tbl.grid(row=0, column=1, sticky="nsew", padx=8, pady=8)
         parent.rowconfigure(0, weight=1)
+
         cols = ("RUC", "Raz_Soc", "Direccion", "Telefono", "Email")
         self.tv_prv = ttk.Treeview(fr_tbl, columns=cols, show="headings", height=12)
         for c in cols:
@@ -526,9 +640,11 @@ class MainApp(tk.Tk):
         self.tv_prv.pack(fill="both", expand=True)
         self.tv_prv.bind("<<TreeviewSelect>>", self._prv_on_select)
         ttk.Button(fr_tbl, text="Refrescar", command=self._cargar_proveedores).pack(anchor="e", pady=6)
+
         self._cargar_proveedores()
 
     def _prv_on_select(self, _evt):
+        """Carga el proveedor seleccionado en el formulario para editar."""
         sel = self.tv_prv.selection()
         if not sel:
             return
@@ -541,6 +657,7 @@ class MainApp(tk.Tk):
             self.e_prv_mail.delete(0, tk.END); self.e_prv_mail.insert(0, r[4])
 
     def _cargar_proveedores(self):
+        """Lista proveedores con sus contactos (LEFT JOIN para no perder nulos)."""
         for i in self.tv_prv.get_children():
             self.tv_prv.delete(i)
         sql = """
@@ -555,6 +672,7 @@ class MainApp(tk.Tk):
             self.tv_prv.insert("", tk.END, values=r)
 
     def _crear_proveedor(self):
+        """Invoca sp_Agregar_Proveedor."""
         ruc = self.e_prv_ruc.get().strip()
         raz = self.e_prv_raz.get().strip()
         dire = self.e_prv_dir.get().strip()
@@ -572,6 +690,7 @@ class MainApp(tk.Tk):
             messagebox.showerror("Proveedor", out)
 
     def _actualizar_proveedor(self):
+        """Invoca sp_Actualizar_Proveedor."""
         ruc = self.e_prv_ruc.get().strip()
         raz = self.e_prv_raz.get().strip()
         dire = self.e_prv_dir.get().strip()
@@ -589,6 +708,7 @@ class MainApp(tk.Tk):
             messagebox.showerror("Proveedor", out)
 
     def _eliminar_proveedor(self):
+        """Invoca sp_Eliminar_Proveedor (valida ordenes asociadas en el SP)."""
         ruc = self.e_prv_ruc.get().strip()
         if not ruc:
             messagebox.showwarning("Proveedor", "Seleccione un proveedor.")
@@ -602,43 +722,58 @@ class MainApp(tk.Tk):
             else:
                 messagebox.showerror("Proveedor", out)
 
+    # -------- Empresas (Clientes) --------------------------------------------
     def _build_tab_empresas(self, parent):
+        """UI y eventos de CRUD de Empresa + dirección/teléfono/correo asociados."""
         parent.columnconfigure(0, weight=1)
         parent.columnconfigure(1, weight=1)
+
         fr_form = ttk.LabelFrame(parent, text="Empresa (Cliente) – Crear / Actualizar", padding=10)
         fr_form.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
+
         ttk.Label(fr_form, text="RUC (11)").grid(row=0, column=0, sticky="e")
         self.e_cli_ruc = ttk.Entry(fr_form, width=18)
         self.e_cli_ruc.grid(row=0, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_form, text="Razón Social").grid(row=1, column=0, sticky="e")
         self.e_cli_raz = ttk.Entry(fr_form, width=40)
         self.e_cli_raz.grid(row=1, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_form, text="FAX").grid(row=2, column=0, sticky="e")
         self.e_cli_fax = ttk.Entry(fr_form, width=18)
         self.e_cli_fax.grid(row=2, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_form, text="Ciudad").grid(row=3, column=0, sticky="e")
         self.e_cli_ciudad = ttk.Entry(fr_form, width=20)
         self.e_cli_ciudad.grid(row=3, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_form, text="Calle").grid(row=4, column=0, sticky="e")
         self.e_cli_calle = ttk.Entry(fr_form, width=30)
         self.e_cli_calle.grid(row=4, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_form, text="Distrito").grid(row=5, column=0, sticky="e")
         self.e_cli_distrito = ttk.Entry(fr_form, width=20)
         self.e_cli_distrito.grid(row=5, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_form, text="Teléfono").grid(row=6, column=0, sticky="e")
         self.e_cli_tel = ttk.Entry(fr_form, width=18)
         self.e_cli_tel.grid(row=6, column=1, sticky="w", pady=2)
+
         ttk.Label(fr_form, text="Correo").grid(row=7, column=0, sticky="e")
         self.e_cli_mail = ttk.Entry(fr_form, width=28)
         self.e_cli_mail.grid(row=7, column=1, sticky="w", pady=2)
+
         fr_btns = ttk.Frame(fr_form)
         fr_btns.grid(row=8, column=0, columnspan=2, sticky="e", pady=6)
         ttk.Button(fr_btns, text="Crear", command=self._crear_empresa).grid(row=0, column=0, padx=4)
         ttk.Button(fr_btns, text="Actualizar", command=self._actualizar_empresa).grid(row=0, column=1, padx=4)
         ttk.Button(fr_btns, text="Eliminar", command=self._eliminar_empresa).grid(row=0, column=2, padx=4)
+
+        # Tabla
         fr_tbl = ttk.LabelFrame(parent, text="Listado", padding=10)
         fr_tbl.grid(row=0, column=1, sticky="nsew", padx=8, pady=8)
         parent.rowconfigure(0, weight=1)
+
         cols = ("RUC","Raz_Soc","FAX","Ciudad","Calle","Distrito","Telefono","Correo")
         self.tv_cli = ttk.Treeview(fr_tbl, columns=cols, show="headings", height=12)
         for c in cols:
@@ -647,9 +782,11 @@ class MainApp(tk.Tk):
         self.tv_cli.pack(fill="both", expand=True)
         self.tv_cli.bind("<<TreeviewSelect>>", self._cli_on_select)
         ttk.Button(fr_tbl, text="Refrescar", command=self._cargar_empresas).pack(anchor="e", pady=6)
+
         self._cargar_empresas()
 
     def _cli_on_select(self, _evt):
+        """Carga en el formulario la empresa seleccionada para edición."""
         sel = self.tv_cli.selection()
         if not sel:
             return
@@ -665,6 +802,7 @@ class MainApp(tk.Tk):
             self.e_cli_mail.delete(0, tk.END); self.e_cli_mail.insert(0, v[7])
 
     def _cargar_empresas(self):
+        """Lista empresas con sus datos vinculados (dirección/teléfono/correo)."""
         for i in self.tv_cli.get_children():
             self.tv_cli.delete(i)
         sql = """
@@ -681,6 +819,7 @@ class MainApp(tk.Tk):
             self.tv_cli.insert("", tk.END, values=r)
 
     def _crear_empresa(self):
+        """Invoca sp_Agregar_Empresa (transaccional; crea empresa + datos relacionados)."""
         ruc = self.e_cli_ruc.get().strip()
         raz = self.e_cli_raz.get().strip()
         fax = self.e_cli_fax.get().strip()
@@ -701,6 +840,7 @@ class MainApp(tk.Tk):
             messagebox.showerror("Empresa", out)
 
     def _actualizar_empresa(self):
+        """Invoca sp_Actualizar_Empresa (upserts en tablas relacionadas)."""
         ruc = self.e_cli_ruc.get().strip()
         raz = self.e_cli_raz.get().strip()
         fax = self.e_cli_fax.get().strip()
@@ -721,6 +861,7 @@ class MainApp(tk.Tk):
             messagebox.showerror("Empresa", out)
 
     def _eliminar_empresa(self):
+        """Invoca sp_Eliminar_Empresa (bloquea si hay OC asociadas; lo valida el SP)."""
         ruc = self.e_cli_ruc.get().strip()
         if not ruc:
             messagebox.showwarning("Empresa", "Seleccione una empresa.")
@@ -734,11 +875,16 @@ class MainApp(tk.Tk):
             else:
                 messagebox.showerror("Empresa", out)
 
+    # -------- Orden de Compra -------------------------------------------------
     def _build_tab_oc(self, parent):
+        """UI y eventos para registrar/actualizar/eliminar órdenes de compra."""
         parent.columnconfigure(0, weight=1)
         parent.columnconfigure(1, weight=1)
+
         frm = ttk.LabelFrame(parent, text="Registrar / Actualizar / Eliminar Orden de Compra", padding=10)
         frm.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=8, pady=8)
+
+        # Formulario de OC (todos los campos)
         ttk.Label(frm, text="Nro_Orden").grid(row=0, column=0, sticky="e")
         self.oc_nro = ttk.Entry(frm, width=16); self.oc_nro.grid(row=0, column=1, sticky="w", pady=2)
         ttk.Label(frm, text="Per_UM").grid(row=0, column=2, sticky="e")
@@ -767,10 +913,13 @@ class MainApp(tk.Tk):
         self.oc_rucemp = ttk.Entry(frm, width=14); self.oc_rucemp.grid(row=6, column=1, sticky="w", pady=2)
         ttk.Label(frm, text="Nro_Parte").grid(row=6, column=2, sticky="e")
         self.oc_np = ttk.Entry(frm, width=14); self.oc_np.grid(row=6, column=3, sticky="w", pady=2)
+
         frb = ttk.Frame(frm); frb.grid(row=7, column=0, columnspan=4, sticky="e", pady=6)
         ttk.Button(frb, text="Registrar", command=self._registrar_oc).grid(row=0, column=0, padx=4)
         ttk.Button(frb, text="Actualizar", command=self._actualizar_oc).grid(row=0, column=1, padx=4)
         ttk.Button(frb, text="Eliminar", command=self._eliminar_oc).grid(row=0, column=2, padx=4)
+
+        # Tabla de OC
         fr_tbl = ttk.LabelFrame(parent, text="Órdenes", padding=10)
         fr_tbl.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=8, pady=8)
         parent.rowconfigure(1, weight=1)
@@ -782,9 +931,11 @@ class MainApp(tk.Tk):
         self.tv_oc.pack(fill="both", expand=True)
         self.tv_oc.bind("<<TreeviewSelect>>", self._oc_on_select)
         ttk.Button(fr_tbl, text="Refrescar", command=self._cargar_oc).pack(anchor="e", pady=6)
+
         self._cargar_oc()
 
     def _oc_on_select(self, _evt):
+        """Carga en el formulario la OC seleccionada."""
         sel = self.tv_oc.selection()
         if not sel:
             return
@@ -805,6 +956,7 @@ class MainApp(tk.Tk):
             self.oc_rucemp.delete(0, tk.END); self.oc_rucemp.insert(0, v[12])
 
     def _cargar_oc(self):
+        """Lista últimas órdenes (ordenadas por fecha y número)."""
         for i in self.tv_oc.get_children():
             self.tv_oc.delete(i)
         sql = "SELECT Nro_Orden, Per_UM, Fecha_Entrega, Precio_Neto, Item, Cantidad, UM, Forma_pago, IFNULL(Incoterms_2000,''), Desc_Orden, Codigo_Empleado, RUC_Proveedor, RUC_Empresa FROM Orden_Compra ORDER BY Fecha_Entrega DESC, Nro_Orden DESC;"
@@ -813,6 +965,7 @@ class MainApp(tk.Tk):
             self.tv_oc.insert("", tk.END, values=r)
 
     def _registrar_oc(self):
+        """Invoca sp_Registrar_OrdenCompra (inserta y actualiza stock SUMA)."""
         nro = self.oc_nro.get().strip()
         perum = self.oc_perum.get().strip()
         fecha = self.oc_fecha.get().strip()
@@ -849,6 +1002,7 @@ class MainApp(tk.Tk):
             messagebox.showerror("Orden Compra", out)
 
     def _actualizar_oc(self):
+        """Invoca sp_Actualizar_OrdenCompra (ajusta stock según delta de cantidad)."""
         nro = self.oc_nro.get().strip()
         perum = self.oc_perum.get().strip()
         fecha = self.oc_fecha.get().strip()
@@ -885,6 +1039,7 @@ class MainApp(tk.Tk):
             messagebox.showerror("Orden Compra", out)
 
     def _eliminar_oc(self):
+        """Invoca sp_Eliminar_OrdenCompra (revierte stock y borra la OC)."""
         nro = self.oc_nro.get().strip()
         np = self.oc_np.get().strip()
         if not (nro and np):
@@ -899,11 +1054,15 @@ class MainApp(tk.Tk):
             else:
                 messagebox.showerror("Orden Compra", out)
 
+    # -------- Proforma --------------------------------------------------------
     def _build_tab_proforma(self, parent):
+        """UI y eventos de CRUD de Proforma."""
         parent.columnconfigure(0, weight=1)
         parent.columnconfigure(1, weight=1)
+
         fr_form = ttk.LabelFrame(parent, text="Proforma – Crear / Actualizar / Eliminar", padding=10)
         fr_form.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
+
         ttk.Label(fr_form, text="Nro_Proforma").grid(row=0, column=0, sticky="e")
         self.pf_nro = ttk.Entry(fr_form, width=16); self.pf_nro.grid(row=0, column=1, sticky="w", pady=2)
         ttk.Label(fr_form, text="Item").grid(row=1, column=0, sticky="e")
@@ -918,14 +1077,17 @@ class MainApp(tk.Tk):
         self.pf_np = ttk.Entry(fr_form, width=14); self.pf_np.grid(row=5, column=1, sticky="w", pady=2)
         ttk.Label(fr_form, text="Codigo_Empleado").grid(row=6, column=0, sticky="e")
         self.pf_cod = ttk.Entry(fr_form, width=10); self.pf_cod.grid(row=6, column=1, sticky="w", pady=2)
+
         fr_btns = ttk.Frame(fr_form)
         fr_btns.grid(row=7, column=0, columnspan=2, sticky="e", pady=6)
         ttk.Button(fr_btns, text="Crear", command=self._crear_proforma).grid(row=0, column=0, padx=4)
         ttk.Button(fr_btns, text="Actualizar", command=self._actualizar_proforma).grid(row=0, column=1, padx=4)
         ttk.Button(fr_btns, text="Eliminar", command=self._eliminar_proforma).grid(row=0, column=2, padx=4)
+
         fr_tbl = ttk.LabelFrame(parent, text="Listado", padding=10)
         fr_tbl.grid(row=0, column=1, sticky="nsew", padx=8, pady=8)
         parent.rowconfigure(0, weight=1)
+
         cols = ("Nro_Proforma","Item","Cantidad","Fecha","Peso","Nro_Parte","Codigo_Empleado")
         self.tv_pf = ttk.Treeview(fr_tbl, columns=cols, show="headings", height=12)
         for c in cols:
@@ -934,9 +1096,11 @@ class MainApp(tk.Tk):
         self.tv_pf.pack(fill="both", expand=True)
         self.tv_pf.bind("<<TreeviewSelect>>", self._pf_on_select)
         ttk.Button(fr_tbl, text="Refrescar", command=self._cargar_proformas).pack(anchor="e", pady=6)
+
         self._cargar_proformas()
 
     def _pf_on_select(self, _evt):
+        """Carga en el formulario la proforma seleccionada."""
         sel = self.tv_pf.selection()
         if not sel:
             return
@@ -951,6 +1115,7 @@ class MainApp(tk.Tk):
             self.pf_cod.delete(0, tk.END); self.pf_cod.insert(0, v[6])
 
     def _cargar_proformas(self):
+        """Lista proformas ordenadas por fecha y número."""
         for i in self.tv_pf.get_children():
             self.tv_pf.delete(i)
         sql = "SELECT Nro_Proforma, Item, Cantidad, Fecha, Peso, Nro_Parte, Codigo_Empleado FROM Proforma ORDER BY Fecha DESC, Nro_Proforma DESC;"
@@ -959,6 +1124,7 @@ class MainApp(tk.Tk):
             self.tv_pf.insert("", tk.END, values=r)
 
     def _crear_proforma(self):
+        """Invoca sp_Agregar_Proforma validando tipos básicos."""
         nro = self.pf_nro.get().strip()
         item = self.pf_item.get().strip()
         cant = self.pf_cant.get().strip()
@@ -983,6 +1149,7 @@ class MainApp(tk.Tk):
             messagebox.showerror("Proforma", out)
 
     def _actualizar_proforma(self):
+        """Invoca sp_Actualizar_Proforma."""
         nro = self.pf_nro.get().strip()
         item = self.pf_item.get().strip()
         cant = self.pf_cant.get().strip()
@@ -1007,6 +1174,7 @@ class MainApp(tk.Tk):
             messagebox.showerror("Proforma", out)
 
     def _eliminar_proforma(self):
+        """Invoca sp_Eliminar_Proforma con confirmación."""
         nro = self.pf_nro.get().strip()
         if not nro:
             messagebox.showwarning("Proforma", "Indique Nro_Proforma.")
@@ -1020,11 +1188,15 @@ class MainApp(tk.Tk):
             else:
                 messagebox.showerror("Proforma", out)
 
+    # -------- Reportes --------------------------------------------------------
     def _build_tab_reportes(self, parent):
+        """UI de reportes parametrizables (combobox + parámetro numérico)."""
         frm = ttk.Frame(parent, padding=12)
         frm.pack(fill="both", expand=True)
+
         top = ttk.Frame(frm)
         top.pack(fill="x")
+
         ttk.Label(top, text="Reporte").pack(side="left")
         self.rep_var = tk.StringVar(value="Stock bajo")
         self.cmb_rep = ttk.Combobox(top, textvariable=self.rep_var, state="readonly",
@@ -1041,14 +1213,19 @@ class MainApp(tk.Tk):
                                         "Proveedores sin órdenes"
                                     ], width=34)
         self.cmb_rep.pack(side="left", padx=8)
+
         ttk.Label(top, text=" Umbral/Parámetro:").pack(side="left")
         self.e_param = ttk.Entry(top, width=10); self.e_param.insert(0, "3"); self.e_param.pack(side="left")
+
         ttk.Button(top, text="Mostrar", command=self._refrescar_reporte).pack(side="left", padx=8)
+
         self.tv_rep = ttk.Treeview(frm, columns=(), show="headings")
         self.tv_rep.pack(fill="both", expand=True, pady=8)
+
         self._refrescar_reporte()
 
     def _set_report_columns(self, headers):
+        """Configura columnas del Treeview de reportes y limpia las filas."""
         self.tv_rep["columns"] = headers
         self.tv_rep.delete(*self.tv_rep.get_children())
         for c in headers:
@@ -1056,7 +1233,9 @@ class MainApp(tk.Tk):
             self.tv_rep.column(c, width=160, anchor="w")
 
     def _refrescar_reporte(self):
+        """Genera el SQL según el tipo de reporte y vuelca los resultados al Treeview."""
         tipo = self.rep_var.get()
+
         if tipo == "Stock bajo":
             try:
                 umbral = int(self.e_param.get().strip())
@@ -1068,6 +1247,7 @@ class MainApp(tk.Tk):
             rows = self.client.select_rows(sql)
             for r in rows:
                 self.tv_rep.insert("", tk.END, values=r)
+
         elif tipo == "Proveedores y contacto":
             self._set_report_columns(("RUC","Raz_Soc","Direccion","Telefono","Email"))
             sql = """
@@ -1080,6 +1260,7 @@ class MainApp(tk.Tk):
             rows = self.client.select_rows(sql)
             for r in rows:
                 self.tv_rep.insert("", tk.END, values=r)
+
         elif tipo == "Órdenes recientes":
             self._set_report_columns(("Nro_Orden","Fecha_Entrega","Precio_Neto","Empleado","Proveedor","Empresa"))
             sql = """
@@ -1094,6 +1275,7 @@ class MainApp(tk.Tk):
             rows = self.client.select_rows(sql)
             for r in rows:
                 self.tv_rep.insert("", tk.END, values=r)
+
         elif tipo == "Órdenes por empresa":
             self._set_report_columns(("RUC_Empresa","Empresa","Total_Ordenes","Suma_Precio_Neto"))
             sql = """
@@ -1106,6 +1288,7 @@ class MainApp(tk.Tk):
             rows = self.client.select_rows(sql)
             for r in rows:
                 self.tv_rep.insert("", tk.END, values=r)
+
         elif tipo == "Top empresas por monto":
             self._set_report_columns(("Empresa","Monto_Total"))
             sql = """
@@ -1119,7 +1302,9 @@ class MainApp(tk.Tk):
             rows = self.client.select_rows(sql)
             for r in rows:
                 self.tv_rep.insert("", tk.END, values=r)
+
         elif tipo == "Repuestos más comprados":
+            # TOP N por cantidad en Proforma (parámetro en la caja)
             try:
                 topn = int(self.e_param.get().strip() or "10")
             except:
@@ -1136,6 +1321,7 @@ class MainApp(tk.Tk):
             rows = self.client.select_rows(sql)
             for r in rows:
                 self.tv_rep.insert("", tk.END, values=r)
+
         elif tipo == "Proformas por empleado":
             self._set_report_columns(("Empleado","Nro_Proformas","Total_Unidades"))
             sql = """
@@ -1148,6 +1334,7 @@ class MainApp(tk.Tk):
             rows = self.client.select_rows(sql)
             for r in rows:
                 self.tv_rep.insert("", tk.END, values=r)
+
         elif tipo == "Proformas por repuesto":
             self._set_report_columns(("Nro_Parte","Descripcion","Nro_Proformas","Total_Unidades"))
             sql = """
@@ -1160,7 +1347,9 @@ class MainApp(tk.Tk):
             rows = self.client.select_rows(sql)
             for r in rows:
                 self.tv_rep.insert("", tk.END, values=r)
+
         elif tipo == "Empresas sin órdenes (N días)":
+            # Lista empresas que no tienen OC en los últimos N días (param)
             try:
                 ndias = int(self.e_param.get().strip())
             except:
@@ -1177,7 +1366,9 @@ class MainApp(tk.Tk):
             rows = self.client.select_rows(sql)
             for r in rows:
                 self.tv_rep.insert("", tk.END, values=r)
+
         else:
+            # Proveedores sin órdenes
             self._set_report_columns(("RUC_Proveedor","Raz_Soc"))
             sql = """
             SELECT p.RUC, p.Raz_Soc
