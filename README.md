@@ -1,11 +1,11 @@
-# COTEIND Desktop App (Python + MySQL)
+# Desktop App (Python + MySQL)
 
-Aplicación de escritorio (tkinter) que consume la BD **coteind**.  
+Aplicación de escritorio (tkinter) que consume una BD.  
 
 ## Requisitos
 - Python 3.8+
 - MySQL Server y cliente `mysql` en PATH
-- Config en `config.json` (por defecto: root / 3306 / coteind)
+- Config en `config.json` (por defecto: root / 3306 / c)
 
 ## Ejecutar
 ```bash
